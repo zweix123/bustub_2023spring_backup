@@ -27,6 +27,7 @@
 
 namespace bustub {
 
+// 接受一个SQL参与作为参数, 返回该SQL的Schema
 auto ParseCreateStatement(const std::string &sql_base) -> std::unique_ptr<Schema> {
   std::string::size_type n;
   std::vector<Column> v{};

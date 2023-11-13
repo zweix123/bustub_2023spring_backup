@@ -23,9 +23,10 @@ namespace bustub {
 
 using bustub::DiskManagerUnlimitedMemory;
 
-TEST(BPlusTreeTests, DISABLED_InsertTest1) {
+TEST(BPlusTreeTests, InsertTest1) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
+  // key_schema->ToString() -> (a:BIGINT)
   GenericComparator<8> comparator(key_schema.get());
 
   auto disk_manager = std::make_unique<DiskManagerUnlimitedMemory>();
@@ -45,6 +46,8 @@ TEST(BPlusTreeTests, DISABLED_InsertTest1) {
   int64_t value = key & 0xFFFFFFFF;
   rid.Set(static_cast<int32_t>(key), value);
   index_key.SetFromInteger(key);
+  // rid.ToString() -> page_id: 42 slot_num: 42
+  // index_key.ToString() -> 42
   tree.Insert(index_key, rid, transaction);
 
   auto root_page_id = tree.GetRootPageId();
@@ -62,7 +65,7 @@ TEST(BPlusTreeTests, DISABLED_InsertTest1) {
   delete bpm;
 }
 
-TEST(BPlusTreeTests, DISABLED_InsertTest2) {
+TEST(BPlusTreeTests, InsertTest2) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -87,6 +90,8 @@ TEST(BPlusTreeTests, DISABLED_InsertTest2) {
     tree.Insert(index_key, rid, transaction);
   }
 
+  std::cout << tree.DrawBPlusTree() << "\n";
+
   std::vector<RID> rids;
   for (auto key : keys) {
     rids.clear();
@@ -97,6 +102,8 @@ TEST(BPlusTreeTests, DISABLED_InsertTest2) {
     int64_t value = key & 0xFFFFFFFF;
     EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
+
+  std::cout << "Over Find\n";
 
   int64_t size = 0;
   bool is_present;
@@ -120,7 +127,7 @@ TEST(BPlusTreeTests, DISABLED_InsertTest2) {
   delete bpm;
 }
 
-TEST(BPlusTreeTests, DISABLED_InsertTest3) {
+TEST(BPlusTreeTests, InsertTest3) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());

@@ -103,7 +103,6 @@ tmp/
 *.gcno
 *.gcda
 
-
 #==============================================================================#
 # Eclipse
 #==============================================================================#
@@ -131,6 +130,7 @@ local.properties
 
 # PyDev specific (Python IDE for Eclipse)
 *.pydevproject
+.mypy_cache/
 
 # CDT-specific (C/C++ Development Tooling)
 .cproject

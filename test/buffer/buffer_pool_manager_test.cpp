@@ -23,7 +23,7 @@ namespace bustub {
 
 // NOLINTNEXTLINE
 // Check whether pages containing terminal characters can be recovered
-TEST(BufferPoolManagerTest, DISABLED_BinaryDataTest) {
+TEST(BufferPoolManagerTest, BinaryDataTest) {
   const std::string db_name = "test.db";
   const size_t buffer_pool_size = 10;
   const size_t k = 5;
@@ -97,7 +97,7 @@ TEST(BufferPoolManagerTest, DISABLED_BinaryDataTest) {
 }
 
 // NOLINTNEXTLINE
-TEST(BufferPoolManagerTest, DISABLED_SampleTest) {
+TEST(BufferPoolManagerTest, SampleTest) {
   const std::string db_name = "test.db";
   const size_t buffer_pool_size = 10;
   const size_t k = 5;
@@ -150,6 +150,157 @@ TEST(BufferPoolManagerTest, DISABLED_SampleTest) {
   disk_manager->ShutDown();
   remove("test.db");
 
+  delete bpm;
+  delete disk_manager;
+}
+
+TEST(BufferPoolManagerTest, ThirdSampleTest1) {
+  page_id_t temp_page_id;
+
+  auto *disk_manager = new DiskManager("test.db");
+  auto *bpm = new BufferPoolManager(10, disk_manager);
+
+  auto page_zero = bpm->NewPage(&temp_page_id);
+  EXPECT_NE(nullptr, page_zero);
+  EXPECT_EQ(0, temp_page_id);
+
+  // The test will fail here if the page is null
+  ASSERT_NE(nullptr, page_zero);
+
+  // change content in page one
+  const auto dummy_str = "Hello";
+  std::memcpy(page_zero->GetData(), dummy_str, std::strlen(dummy_str));
+
+  for (int i = 1; i < 10; ++i) {
+    EXPECT_NE(nullptr, bpm->NewPage(&temp_page_id));
+  }
+  // all the pages are pinned, the buffer pool is full
+  for (int i = 10; i < 15; ++i) {
+    EXPECT_EQ(nullptr, bpm->NewPage(&temp_page_id));
+  }
+  // upin the first five pages, add them to LRU list, set as dirty
+  for (int i = 0; i < 5; ++i) {
+    EXPECT_EQ(true, bpm->UnpinPage(i, true));
+  }
+  // we have 5 empty slots in LRU list, evict page zero out of buffer pool
+  for (int i = 10; i < 14; ++i) {
+    EXPECT_NE(nullptr, bpm->NewPage(&temp_page_id));
+  }
+  // fetch page one again
+  page_zero = bpm->FetchPage(0);
+  // check read content
+  EXPECT_EQ(0, strcmp(page_zero->GetData(), "Hello"));
+
+  remove("test.db");
+  delete bpm;
+  delete disk_manager;
+}
+
+TEST(BufferPoolManagerTest, ThirdSampleTest2) {
+  page_id_t temp_page_id;
+
+  auto *disk_manager = new DiskManager("test.db");
+  auto *bpm = new BufferPoolManager(10, disk_manager);
+
+  auto page_zero = bpm->NewPage(&temp_page_id);
+  EXPECT_NE(nullptr, page_zero);
+  EXPECT_EQ(0, temp_page_id);
+
+  // The test will fail here if the page is null
+  ASSERT_NE(nullptr, page_zero);
+
+  // change content in page one
+  const auto dummy_str = "Hello";
+  std::memcpy(page_zero->GetData(), dummy_str, std::strlen(dummy_str));
+
+  for (int i = 1; i < 10; ++i) {
+    EXPECT_NE(nullptr, bpm->NewPage(&temp_page_id));
+  }
+
+  // upin the first five pages, add them to LRU list, set as dirty
+  for (int i = 0; i < 1; ++i) {
+    EXPECT_EQ(true, bpm->UnpinPage(i, true));
+    page_zero = bpm->FetchPage(0);
+    EXPECT_EQ(0, strcmp(page_zero->GetData(), "Hello"));
+    EXPECT_EQ(true, bpm->UnpinPage(i, true));
+    EXPECT_NE(nullptr, bpm->NewPage(&temp_page_id));
+  }
+
+  std::vector<int> test{5, 6, 7, 8, 9, 10};
+
+  for (auto v : test) {
+    Page *page = bpm->FetchPage(v);
+    if (page == nullptr) {
+      assert(false);
+    }
+    EXPECT_EQ(v, page->GetPageId());
+    bpm->UnpinPage(v, true);
+  }
+
+  bpm->UnpinPage(10, true);
+
+  // fetch page one again
+  page_zero = bpm->FetchPage(0);
+  // check read content
+  EXPECT_EQ(0, strcmp(page_zero->GetData(), "Hello"));
+
+  remove("test.db");
+  delete bpm;
+  delete disk_manager;
+}
+
+TEST(BufferPoolManagerTest, FetchPage) {
+  const std::string db_name = "test.db";
+  const size_t buffer_pool_size = 10;
+  const size_t k = 5;
+
+  auto *disk_manager = new DiskManager(db_name);
+  auto *bpm = new BufferPoolManager(buffer_pool_size, disk_manager, k);
+
+  page_id_t page_id_0;
+  page_id_t page_id_temp;
+  auto *page0 = bpm->NewPage(&page_id_0);
+
+  for (size_t i = 1; i < buffer_pool_size; ++i) {
+    EXPECT_NE(nullptr, bpm->NewPage(&page_id_temp));
+  }
+
+  page0 = bpm->FetchPage(0);
+  EXPECT_EQ(0, strcmp(page0->GetData(), ""));
+  for (size_t i = 0; i < buffer_pool_size; ++i) {
+    EXPECT_EQ(true, bpm->UnpinPage(i, true));
+  }
+
+  remove("test.db");
+  delete bpm;
+  delete disk_manager;
+}
+
+TEST(BufferPoolManagerTest, IsDirty) {
+  const std::string db_name = "test.db";
+  const size_t buffer_pool_size = 1;
+  const size_t k = 5;
+
+  auto *disk_manager = new DiskManager(db_name);
+  auto *bpm = new BufferPoolManager(buffer_pool_size, disk_manager, k);
+
+  page_id_t page_id_0;
+  auto *page0 = bpm->NewPage(&page_id_0);
+
+  ASSERT_NE(nullptr, page0);
+  EXPECT_EQ(true, bpm->UnpinPage(0, true));
+
+  page0 = bpm->FetchPage(0);
+  ASSERT_NE(nullptr, page0);
+
+  EXPECT_EQ(true, bpm->UnpinPage(0, false));
+
+  page0 = bpm->FetchPage(0);
+  ASSERT_NE(nullptr, page0);
+
+  bpm->DeletePage(0);
+
+  remove("test.db");
   delete bpm;
   delete disk_manager;
 }
