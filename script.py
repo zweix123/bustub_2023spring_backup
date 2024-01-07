@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import re
+import re, os
 from typing import Optional
+
+try:
+    from dryad import Dryad, DryadFlag, run_shell_cmd
+except Exception as e:
+    print("install dryad: ")
+    print("  git clone https://github.com/zweix123/dryad.git")
+    print("  cd dryad")
+    print("  pip install .")
+    exit(-1)
+
 
 SQL = """
 SELECT * FROM test_1 t1, test_2 t2 WHERE t1.colA = t2.colA AND t1.colB = t2.colC;
@@ -32,9 +42,7 @@ def cmd_viz_repl():
     """
 
     def run_cmd(cmd: str):
-        DryadUtil.run_shell_cmd(
-            cmd, pre_cmd=["cd build"], is_print_cmd_and_result_code=False
-        )
+        run_shell_cmd("\n".join(["cd build", cmd]))
 
     # compile
     run_cmd("make b_plus_tree_printer -j$(nproc)")
@@ -88,10 +96,11 @@ def cmd_viz_repl():
 
 
 def debug_terrier_helper():
-    """final_helper
-    处理命令生成的脚本
-    主要是对特定格式进行解析然后按6.824的方式输出
-    需要CPP端的配合, 已在梗犬测试代码(terrier_debug.cpp)中修改
+    """
+    final_helper
+        处理命令生成的脚本
+        主要是对特定格式进行解析然后按6.824的方式输出
+        需要CPP端的配合, 已在梗犬测试代码(terrier_debug.cpp)中修改
     """
     from rich import print as rich_print
     from rich.columns import Columns
@@ -135,6 +144,7 @@ def debug_terrier_helper():
 
 
 CMDS = {
+    DryadFlag.PrefixCmd: "cd build",
     "viz": [
         "make b_plus_tree_printer -j$(nproc)",
         f'echo "{TREE_INPUT + TREE_SUFFIX}" | ./bin/b_plus_tree_printer',
@@ -276,182 +286,5 @@ CMDS = {
     ],
 }
 
-# ================================================================= #
 
-
-import os
-import subprocess
-import sys
-from typing import Any, Callable
-
-
-class DryadConfig:
-    SCRIPTPATH = os.path.dirname(os.path.abspath(__file__))
-    CALLPATH = os.getcwd()
-    OSTYPE = sys.platform
-
-
-class DryadUtil:
-    @staticmethod
-    def config():
-        if DryadConfig.OSTYPE == "win32":
-            pass
-        elif DryadConfig.OSTYPE == "linux":
-            pass
-        elif DryadConfig.OSTYPE == "darwin":
-            pass
-        else:
-            assert False
-
-    @staticmethod
-    def run_shell_cmd(
-        cmd: str,
-        pre_cmd: list[str] = [],
-        is_print_cmd_and_result_code: bool = True,
-    ) -> None:
-        assert type(cmd) is str
-        if is_print_cmd_and_result_code:
-            print("\033[33;1m" + cmd + "\033[0m")
-        cmd = "\n".join(pre_cmd) + "\n" + cmd
-        try:
-            if DryadConfig.OSTYPE == "win32":
-                assert False, "Not Impl"
-            elif DryadConfig.OSTYPE == "linux":
-                subprocess.run(["bash", "-c", cmd], check=True)
-            else:
-                assert False, "Not Impl"
-        except Exception as e:
-            if is_print_cmd_and_result_code:
-                print("\033[41m\033[37m" + "Fail" + "\033[0m")
-            exit(-1)
-        # if is_print_cmd_and_result_code:
-        #     print("\033[42m\033[37m" + "Pass" + "\033[0m")
-
-    @staticmethod
-    def right_shift(text: str | list[str], dis: int) -> str:
-        if type(text) is str:
-            text = [text]
-        SPACE_LEN = max([len(line) for line in text]) + 42
-        ss = [
-            s if len(s) != 0 else " " * SPACE_LEN
-            for l in [map(str.strip, line.split("\n")) for line in text]
-            for s in l
-        ]
-        assert max([len(s) for s in ss]) <= SPACE_LEN
-        while not any(len(s) == 0 or s[0] != " " for s in ss):
-            ss = [s[1:] for s in ss]
-        return ("\n" + " " * dis).join(map(str.strip, ss)).strip()
-
-
-class Dryad:
-    def __init__(self, cmd_tree: dict, cmd_prefix: list[str] = []) -> None:
-        self.cmd_tree = cmd_tree
-        self.cmd_prefix = cmd_prefix
-
-        self.config()
-        self.main()
-
-    def config(self):
-        self.cmd_tree[("-h", "--help")] = self.print_help
-
-        if DryadConfig.OSTYPE == "win32":
-            assert False, f"{DryadConfig.OSTYPE} not yet tested, can't be used."
-        elif DryadConfig.OSTYPE == "linux":
-            self.cmd_prefix = ["set -e"] + self.cmd_prefix
-        else:
-            assert False, f"{DryadConfig.OSTYPE} not yet tested, can't be used."
-
-        DryadUtil.config()
-
-    def main(self):
-        self.options = sys.argv[1:]
-        if len(self.options) == 0:
-            self.print_help()
-        else:
-            self.opt_dfs(self.options, self.cmd_tree)
-
-    def print_help(self):
-        """Print commands and desciptions supported by script.py."""
-        print("该脚本命令可分为两大类")
-        print("  Shell Commands, help会输出命令本身")
-        print("  Python Function, help会输出函数的__doc__")
-        print("命令是支持前缀递归调用的, 比如./script.py test相当于调用所有以test为前缀的命令.")
-
-        def dfs_handle_cmds_doc(cmds: dict | list | str | Callable):
-            """递归处理命令树中命令的内容和文档"""
-            assert (
-                type(dict) is not dict
-            ), "Just for mypy, should not be passed into dict"
-            if type(cmds) is str:
-                return cmds.strip("\n")
-            elif type(cmds) is list:
-                return "\n".join([dfs_handle_cmds_doc(cmd) for cmd in cmds])
-            elif callable(cmds):
-                return cmds.__doc__.strip("\n") if cmds.__doc__ is not None else "None"
-            else:
-                assert False
-
-        def dfs_handle_opts(opt: list[str], remain_cmds: dict | Any):
-            if type(remain_cmds) is not dict:  # 递归到选项边界
-                opts = " ".join(opt)
-                doc = DryadUtil.right_shift(
-                    dfs_handle_cmds_doc(remain_cmds), len(opts + ": ")
-                )
-                print(f"\033[36m{opts}\033[0m: \033[33m{doc}\033[0m")
-                return
-            for k, v in remain_cmds.items():
-                if type(k) is tuple:
-                    opt.append("/".join(k))
-                elif type(k) is str:
-                    opt.append(k)
-                else:
-                    assert False
-                dfs_handle_opts(opt, v)
-                opt.pop()
-
-        dfs_handle_opts([], self.cmd_tree)
-
-    def dfs_run(self, cmds: dict | list | str | Callable):
-        if callable(cmds):
-            cmds()
-        elif type(cmds) is str:
-            DryadUtil.run_shell_cmd(cmds, self.cmd_prefix)
-        elif type(cmds) is list:
-            for cmd in cmds:
-                self.dfs_run(cmd)
-        elif type(cmds) is dict:
-            for next_cmds in cmds.values():
-                self.dfs_run(next_cmds)
-        else:
-            assert False, "Impossible the type branch: " + "cmds = " + str(cmds)
-
-    def opt_dfs(self, opts: list[str], cmds: dict | list | str | Callable):
-        if len(opts) == 0:  # 递归边界
-            self.dfs_run(cmds)
-            return
-        if type(cmds) is not dict or not (
-            any(opts[0] == ele for ele in cmds.keys() if type(ele) is not tuple)
-            or any(opts[0] in ele for ele in cmds.keys() if type(ele) is tuple)
-        ):
-            print(f"Don't supported the options: \"{' '.join(self.options)}\"")
-            print('Give it a try of option: "--help"')
-            return
-        # support default
-        if len(opts) == 1 and opts[0] != "default" and "default" in cmds.keys():
-            #  最后一个选项     这个选项不是default         “子树”命令集中有default
-            self.dfs_run(cmds["default"])  # default命令不能使用()做命令重合
-        next_cmds = {
-            k: v
-            for k, v in cmds.items()
-            if (type(k) is tuple and opts[0] in k)
-            or (type(k) is not tuple and opts[0] == k)
-        }
-        assert (
-            len(next_cmds) == 1
-        ), f"歧义参数: opts: {opts}, cmd.kets(): {cmds.keys()}, next_cmds.keys(): {next_cmds.keys()}"
-        self.opt_dfs(opts[1:], list(next_cmds.values())[0])
-
-
-# ================================================================================= #
-
-Dryad(cmd_tree=CMDS, cmd_prefix=["cd build"])
+Dryad(cmd_tree=CMDS)
